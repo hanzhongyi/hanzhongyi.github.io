@@ -1,0 +1,861 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="hanzhongyi">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="纯净的视频解码流程  压缩编码数据-&gt;像素数据。 例如解码H.264，就是H.264码流-&gt;YUV。   一般的视频解码流程  视频码流一般存储在一定的封装格式（例如MP4、AVI等）中，封装格式中通常还包含音频码流等内容。 对于封装格式中的视频，需要先从封装格式中提取视频码流，然后再进行解码。 例如解码MKV格式的视频文件，就是MKV-&gt;H.264码流-&gt;YUV。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="video_codec">
+<meta property="og:url" content="http://example.com/2022/01/16/video-codec/index.html">
+<meta property="og:site_name" content="hanzhongyi blog">
+<meta property="og:description" content="纯净的视频解码流程  压缩编码数据-&gt;像素数据。 例如解码H.264，就是H.264码流-&gt;YUV。   一般的视频解码流程  视频码流一般存储在一定的封装格式（例如MP4、AVI等）中，封装格式中通常还包含音频码流等内容。 对于封装格式中的视频，需要先从封装格式中提取视频码流，然后再进行解码。 例如解码MKV格式的视频文件，就是MKV-&gt;H.264码流-&gt;YUV。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-01-16T13:34:57.000Z">
+<meta property="article:modified_time" content="2022-01-16T13:36:53.081Z">
+<meta property="article:author" content="hanzhongyi">
+<meta property="article:tag" content="video codec">
+<meta property="article:tag" content="ffmpeg">
+<meta property="article:tag" content="SDL">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+  <title>video_codec - hanzhongyi blog</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4/github-markdown.min.css" />
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hint.css@2/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.css" />
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.8.14","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 6.0.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>hanzhongyi</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="video_codec">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2022-01-16 21:34" pubdate>
+        2022年1月16日 晚上
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      2.9k 字
+    </span>
+  
+
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      24 分钟
+    </span>
+  
+
+  
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">video_codec</h1>
+            
+            <div class="markdown-body">
+              <h2 id="纯净的视频解码流程"><a class="markdownIt-Anchor" href="#纯净的视频解码流程"></a> 纯净的视频解码流程</h2>
+<ul>
+<li>压缩编码数据-&gt;像素数据。</li>
+<li>例如解码H.264，就是<code>H.264码流-&gt;YUV</code>。</li>
+</ul>
+<h2 id="一般的视频解码流程"><a class="markdownIt-Anchor" href="#一般的视频解码流程"></a> 一般的视频解码流程</h2>
+<ul>
+<li>视频码流一般存储在一定的封装格式（例如MP4、AVI等）中，封装格式中通常还包含音频码流等内容。</li>
+<li>对于封装格式中的视频，需要先从封装格式中提取视频码流，然后再进行解码。</li>
+<li>例如解码MKV格式的视频文件，就是<code>MKV-&gt;H.264码流-&gt;YUV</code>。</li>
+</ul>
+<h2 id="ffmpeg库基本介绍"><a class="markdownIt-Anchor" href="#ffmpeg库基本介绍"></a> FFmpeg库基本介绍</h2>
+<p><strong>FFmpeg一共包含8个库：</strong></p>
+<ul>
+<li><mark>avcodec：编解码（最重要的库），</mark></li>
+<li><mark>avformat：封装格式处理，</mark></li>
+<li>avfilter：滤镜特效处理，</li>
+<li>avdevice：各种设备的输入输出，</li>
+<li><mark>avutil：工具库（大部分库都需要这个库的支持），</mark></li>
+<li>postproc：后加工，</li>
+<li>swresample：音频采样数据格式转换，</li>
+<li><mark>swscale：视频像素数据格式转换。</mark></li>
+</ul>
+<p><strong>FFmpeg解码函数简介：</strong></p>
+<ul>
+<li>av_register_all()：注册所有组件。</li>
+<li>avformat_open_input()：打开输入视频文件。</li>
+<li>avformat_find_stream_info()：获取视频文件信息。</li>
+<li>avcodec_find_decoder()：查找解码器。</li>
+<li>avcodec_open2()：打开解码器。</li>
+<li>av_read_frame()：从输入文件读取一帧压缩数据。</li>
+<li>avcodec_decode_video2()：解码一帧压缩数据。</li>
+<li>avcodec_close()：关闭解码器。</li>
+<li>avformat_close_input()：关闭输入视频文件。</li>
+</ul>
+<p><strong>FFmpeg数据结构介绍：</strong></p>
+<ul>
+<li>AVFormatContext<br />
+  · 封装格式上下文结构体，也是统领全局的结构体，保存了视频文件封装格式相关信息。</li>
+<li>AVInputFormat<br />
+  · 每种封装格式（例如FLV、MKV、MP4、AVI）对应一个结构体。</li>
+<li>AVStream<br />
+  · 视频文件中每个视频（或音频）流对应一个该结构体。</li>
+<li>AVCodecContext<br />
+  · 编码器上下文结构体，保存了视频（音频）编解码相关信息。</li>
+<li>AVCodec<br />
+  · 每种视频（音频）编解码器（例如H.264解码器）对应一个该结构体。</li>
+<li>AVPacket<br />
+  · 存储一帧压缩编码数据。</li>
+<li>AVFrame<br />
+  · 存储一帧解码后像素（采样）数据。</li>
+</ul>
+<p><strong>FFMpeg数据结构分析：</strong></p>
+<ul>
+<li>
+<p>ACFormatContext</p>
+</li>
+<li>
+<ul>
+<li>iformat：输入视频的AVInputFormat</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>nb_streams：输入视频的AVStream个数</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>streams：输入视频的AVStream[]数组</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>duration：输入视频的时长（以微秒为单位）</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>bit_rate：输入视频的码率</li>
+</ul>
+</li>
+<li>
+<p>AVInputFormat</p>
+</li>
+<li>
+<ul>
+<li>name：封装格式名称</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>long_name：封装格式的长名称</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>extensions：封装格式的扩展名</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>id：封装格式ID</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>一些封装格式处理的接口函数</li>
+</ul>
+</li>
+<li>
+<p>AVStream</p>
+</li>
+<li>
+<ul>
+<li>id：序号</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>codec：该流对应的AVCodecContext</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>time_base：该流的时基</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>r_frame_rate：该流的帧率</li>
+</ul>
+</li>
+<li>
+<p>AVCodecContext</p>
+</li>
+<li>
+<ul>
+<li>codec：编解码器的AVCodec</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>width，height：图像的宽高（只针对视频）</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>pix_fmt：像素格式（只针对视频）</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>sample_rate：采样率（只针对音频）</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>channels：声道数（只针对音频）</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>sample_fmt：采样格式（只针对音频）</li>
+</ul>
+</li>
+<li>
+<p>AVCodec</p>
+</li>
+<li>
+<ul>
+<li>name：编解码器名称</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>long_name：编解码器长名称</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>type：编解码器类型</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>id：编解码器ID</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>一些编解码的接口函数</li>
+</ul>
+</li>
+<li>
+<p>AVPacket</p>
+</li>
+<li>
+<ul>
+<li>pts：显示时间戳，结合time_base进行换算时分秒</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>dts：解码时间戳</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>data：压缩编码数据</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>size：压缩编码数据大小</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>stream_index：所属的AVStream</li>
+</ul>
+</li>
+<li>
+<p>AVFrame</p>
+</li>
+<li>
+<ul>
+<li>data：解码后的图像像素数据（或音频采样数据）</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>linesize：对视频来说是图像中一行像素的大小；对音频来说是整个音频帧的大小。</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>width，height：图像的宽高（只针对视频）</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>key_frame：是否为关键帧（只针对视频）</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>pict_type：帧类型（只针对视频）。例如I，P，B。</li>
+</ul>
+</li>
+<li>
+<p><strong>解码后的数据为什么要经过sws_scale()函数处理？</strong></p>
+</li>
+<li>
+<ul>
+<li>解码后YUV格式的视频像素数据保存在AVFrame的data[0]、data[1]、data[2]中。但是这些像素值并不是连续存储的，每行有效像素之后存储了一些无效像素，以亮度Y数据为例，data[0]中一共包含了linesize[0]*height个数据。但是出于优化等方面的考虑，linesize[0]实际上并不等于width，而是一个比宽度大一些的值。因此需要使用sws_scale()进行转换。转换后去除了无效数据，width和linesize[0]取值相等。</li>
+</ul>
+</li>
+</ul>
+<h2 id="视频显示知识"><a class="markdownIt-Anchor" href="#视频显示知识"></a> 视频显示知识</h2>
+<p><strong>视频显示的流程</strong><br />
+ 将像素数据“画”在屏幕上的过程。<br />
+<strong>SDL简介</strong></p>
+<ul>
+<li><strong>作用</strong></li>
+<li>
+<ul>
+<li>SDL（Simple DirectMedia Layer）库的作用说白了就是封装了复杂的视音频底层交互工作，简化了视音频处理的难度。</li>
+</ul>
+</li>
+<li><strong>特点</strong></li>
+<li>
+<ul>
+<li>跨平台</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>开源</li>
+</ul>
+</li>
+</ul>
+<p><strong>SDL视频显示函数简介</strong></p>
+<ul>
+<li>
+<ul>
+<li>SDL_Init()：初始化SDL系统</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>SDL_CreateWindow()：创建窗口SDL_Window</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>SDL_CreateRenderer()：创建渲染器SDL_Renderer</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>SDL_CreateTexture()：创建纹理SDL_Texture</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>SDL_UpdateTexture()：设置纹理的数据</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>SDL_RenderCopy()：将纹理的数据拷贝给渲染器</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>SDL_RenderPresent()：显示</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>SDL_Delay()：工具函数，用于延时</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>SDL_Quit()：退出SDL系统</li>
+</ul>
+</li>
+</ul>
+<p><strong>SDL数据结构简介</strong></p>
+<ul>
+<li>SDL_Window</li>
+<li>
+<ul>
+<li>代表了一个“窗口”</li>
+</ul>
+</li>
+<li>SDL_Renderer</li>
+<li>
+<ul>
+<li>代表了一个“渲染器”</li>
+</ul>
+</li>
+<li>SDL_Texture</li>
+<li>
+<ul>
+<li>代表了一个“纹理”</li>
+</ul>
+</li>
+<li>SDL_Rect</li>
+<li>
+<ul>
+<li>一个简单的矩形结构</li>
+</ul>
+</li>
+</ul>
+<p><strong>SDL中事件和多线程</strong><br />
+<strong>SDL多线程</strong></p>
+<ul>
+<li>函数</li>
+<li>
+<ul>
+<li>SDL_CreateThread()：创建一个线程</li>
+</ul>
+</li>
+<li>数据结构</li>
+<li>
+<ul>
+<li>SDL_Thread：线程的句柄</li>
+</ul>
+</li>
+</ul>
+<p><strong>SDL事件</strong></p>
+<ul>
+<li>函数</li>
+<li>
+<ul>
+<li>SDL_WaitEvent()：等待一个事件</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>SDL_PushEvent()：发送一个事件</li>
+</ul>
+</li>
+<li>数据结构</li>
+<li>
+<ul>
+<li>SDL_Event：代表一个事件</li>
+</ul>
+</li>
+</ul>
+<h2 id="ffmpeg和sdl整合实现视频播放器"><a class="markdownIt-Anchor" href="#ffmpeg和sdl整合实现视频播放器"></a> FFmpeg和SDL整合实现视频播放器</h2>
+<p><strong>整合方式</strong></p>
+<ul>
+<li>FFmpeg解码器实现了：视频文件-&gt;YUV</li>
+<li>SDL视频显示实现了：YUV-&gt;屏幕</li>
+<li>FFmpeg+SDL整合之后实现了：视频文件-&gt;YUV-&gt;屏幕</li>
+</ul>
+<h2 id="进阶脱离开发环境的独立播放器"><a class="markdownIt-Anchor" href="#进阶脱离开发环境的独立播放器"></a> 进阶：脱离开发环境的独立播放器</h2>
+<ul>
+<li>main()函数的参数</li>
+<li>
+<ul>
+<li>argc argv：全称为ARGument Counter和ARGument Vector。其中argv存储了来自命令行的参数；而argc存储了参数的个数。</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>例如在命令行中输入“ffmpeg -i test.mkv test.ts”，则argc取值为4，而argv[]数组取值如下：</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight apache"><table><tr><td class="gutter"><div class="code-wrapper"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></div></td><td class="code"><pre><code class="hljs apache"><span class="hljs-attribute">argv</span>[<span class="hljs-number">0</span>]=<span class="hljs-string">&quot;ffmpeg&quot;</span><br><span class="hljs-attribute">argv</span>[<span class="hljs-number">1</span>]=<span class="hljs-string">&quot;-i&quot;</span><br><span class="hljs-attribute">argv</span>[<span class="hljs-number">2</span>]=<span class="hljs-string">&quot;test.mkv&quot;</span><br><span class="hljs-attribute">argv</span>[<span class="hljs-number">3</span>]=<span class="hljs-string">&quot;test.ts&quot;</span><br></code></pre></td></tr></table></figure>
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/video-proces/">video proces</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/video-codec/">video codec</a>
+                    
+                      <a class="hover-with-bg" href="/tags/ffmpeg/">ffmpeg</a>
+                    
+                      <a class="hover-with-bg" href="/tags/SDL/">SDL</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2022/01/15/hungarian_algorithm/">
+                        <span class="hidden-mobile">匈牙利算法</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  
+    <script  src="https://cdn.jsdelivr.net/npm/tocbot@4/dist/tocbot.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4/anchor.min.js" ></script>
+  
+  
+    <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js" ></script>
+  
+
+
+
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+        typing(title);
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+</body>
+</html>
